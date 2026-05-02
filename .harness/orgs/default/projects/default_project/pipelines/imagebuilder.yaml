@@ -1,43 +1,89 @@
 pipeline:
-  name: image-builder
-  identifier: imagebuilder
-  projectIdentifier: default_project
-  orgIdentifier: default
-  tags: {}
-  properties:
-    ci:
-      codebase:
-        connectorRef: gitpatharness
-        repoName: kafmrsc-image-builder
-        build: <+input>
+  name: image-builder-operator
+  identifier: image_builder_operator
+  projectIdentifier: <PROJECT_ID>
+  orgIdentifier: <ORG_ID>
+
   stages:
     - stage:
-        name: Image-builder
-        identifier: Imagebuilder
-        description: ""
+        name: Build_Scan_Push
+        identifier: Build_Scan_Push
         type: CI
         spec:
           cloneCodebase: true
-          caching:
-            enabled: true
-            override: true
-          buildIntelligence:
-            enabled: true
+
           infrastructure:
             type: KubernetesDirect
             spec:
-              connectorRef: gckgke
-              namespace: confluent
+              connectorRef: <K8S_CONNECTOR>
+              namespace: default
               automountServiceAccountToken: true
-              nodeSelector: {}
               os: Linux
+
           execution:
             steps:
+
+              # ✅ STEP 1: Define Image (NO TABS / NO EXTRA PREFIX)
               - step:
                   type: Run
-                  name: Run_1
-                  identifier: Run_1
+                  name: Set Image Variable
+                  identifier: set_image
                   spec:
-                    connectorRef: account.harnessImage
-                    image: "us-central1-docker.pkg.dev/sbs-kaf-int-01/cfk/confluent-operator:0.1514.1"
-                    shell: Sh
+                    shell: Bash
+                    command: |
+                      IMAGE="us-central1-docker.pkg.dev/sbs-kaf-int-01/cfk/confluent-operator:0.1514.1"
+                      echo "IMAGE=$IMAGE" >> $HARNESS_ENV_EXPORT
+
+              # ✅ STEP 2: Build Image
+              - step:
+                  type: Run
+                  name: Build Image
+                  identifier: build
+                  spec:
+                    shell: Bash
+                    command: |
+                      echo "Building image: $IMAGE"
+                      docker build -t $IMAGE confluent-operator/
+
+              # ✅ STEP 3: Install Trivy
+              - step:
+                  type: Run
+                  name: Install Trivy
+                  identifier: install_trivy
+                  spec:
+                    shell: Bash
+                    command: |
+                      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+                      mv trivy /usr/local/bin/
+
+              # ✅ STEP 4: Scan Image
+              - step:
+                  type: Run
+                  name: Scan Image
+                  identifier: scan
+                  spec:
+                    shell: Bash
+                    command: |
+                      echo "Scanning image: $IMAGE"
+                      trivy image --severity HIGH,CRITICAL --exit-code 1 $IMAGE
+
+              # ✅ STEP 5: Authenticate to GAR
+              - step:
+                  type: Run
+                  name: GAR Auth
+                  identifier: gar_auth
+                  spec:
+                    shell: Bash
+                    command: |
+                      gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+              # ✅ STEP 6: Push Image
+              - step:
+                  type: Run
+                  name: Push Image
+                  identifier: push
+                  spec:
+                    shell: Bash
+                    command: |
+                      echo "Pushing image: $IMAGE"
+                      docker push $IMAGE
