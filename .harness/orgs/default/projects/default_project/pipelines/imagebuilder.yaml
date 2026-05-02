@@ -1,0 +1,43 @@
+pipeline:
+  name: image-builder
+  identifier: imagebuilder
+  projectIdentifier: default_project
+  orgIdentifier: default
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: gitpatharness
+        repoName: kafmrsc-image-builder
+        build: <+input>
+  stages:
+    - stage:
+        name: Image-builder
+        identifier: Imagebuilder
+        description: ""
+        type: CI
+        spec:
+          cloneCodebase: true
+          caching:
+            enabled: true
+            override: true
+          buildIntelligence:
+            enabled: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: gckgke
+              namespace: confluent
+              automountServiceAccountToken: true
+              nodeSelector: {}
+              os: Linux
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Run_1
+                  identifier: Run_1
+                  spec:
+                    connectorRef: account.harnessImage
+                    image: "us-central1-docker.pkg.dev/\tsbs-kaf-int-01/cfk/confluent-operator:0.1514.1"
+                    shell: Sh
