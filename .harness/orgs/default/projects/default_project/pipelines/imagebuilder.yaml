@@ -39,5 +39,5 @@ pipeline:
                   identifier: Run_1
                   spec:
                     connectorRef: account.harnessImage
-                    image: "us-central1-docker.pkg.dev/\tsbs-kaf-int-01/cfk/confluent-operator:0.1514.1"
+                    image: "us-central1-docker.pkg.dev/sbs-kaf-int-01/cfk/confluent-operator:0.1514.1"
                     shell: Sh
